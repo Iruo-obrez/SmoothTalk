@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmoothTalk by Obrez</title>
+    <!-- Load Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom colors for the theme */
+        :root {
+            --deep-black: --deep-black;
+            --light-black: #1a1a1a;
+            --classic-gold: skyblue;
+            --dark-gold: skyblue;
+            --white: #ffffff;
+        }
+
+        /* Custom font and base styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* --- NEW BACKGROUND IMAGE STYLES --- */
+            background-image: url('pc.jpeg'); 
+            background-size: cover; 
+            background-repeat: no-repeat;
+            background-attachment: fixed; /* Ensures background doesn't scroll with content */
+            background-color: var(--deep-black); /* Fallback/Contrast layer */
+            color: var(--white);
+            
+            /* Add a semi-transparent overlay to the entire body for better text readability */
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); /* 40% transparent black overlay */
+            z-index: -1;
+        }
+
+        /* Style for the chat container to enable scrolling */
+        #chat-container {
+            height: calc(100vh - 180px); 
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            /* CHANGE: Make background transparent so the body image shows through */
+            background-color: transparent; 
+        }
+        
+        /* Custom scrollbar for aesthetics (Black and Gold) */
+        #chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-container::-webkit-scrollbar-thumb {
+            background-color: var(--dark-gold); 
+            border-radius: 4px;
+        }
+
+        /* User Message Bubble: Gold on Black */
+        .user-message {
+            background-color: var(--classic-gold); 
+            color: var(--deep-black); 
+            font-weight: 600;
+            border-radius: 1.5rem 1.5rem 0.5rem 1.5rem;
+            max-width: 80%;
+            align-self: flex-end;
+            padding: 12px 16px;
+        }
+
+        /* AI Message Bubble: White on Light Black */
+        .ai-message {
+            /* CHANGE: Use a slight transparency for the AI message background */
+            background-color: rgba(13, 13, 13, 0.8); 
+            color: var(--white);
+            border: 1px solid var(--dark-gold); /* Gold border for AI responses */
+            border-radius: 1.5rem 1.5rem 1.5rem 0.5rem;
+            max-width: 80%;
+            align-self: flex-start;
+            padding: 12px 16px;
+        }
+
+        /* Typing indicator dots */
+        .dot {
+            height: 8px;
+            width: 8px;
+            background-color: var(--classic-gold); 
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        .dot:nth-child(3) { animation-delay: 0s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div class="max-w-3xl mx-auto flex flex-col h-screen">
+        
+        <!-- Header -->
+        <header class="text-center py-4 bg-[var(--deep-black)] text-white shadow-xl border-b border-[var(--dark-gold)]">
+            <h1 class="text-3xl font-extrabold tracking-tight">
+                SmoothTalk by Obrez <span class="text-[var(--classic-gold)]">👻</span>
+            </h1>
+            <p class="text-sm text-gray-400">Build icebreakers or smooth follow-ups, powered by Gemini and obrez.</p>
+        </header>
+
+        <!-- Chat History Container -->
+        <main id="chat-container" class="flex flex-col p-4 space-y-4 flex-grow">
+            <!-- Initial Message -->
+            <div class="ai-message">
+                Welcome to the SmoothTalk lab. Use the buttons below:
+                <ul>
+                    <li>💎 Compliment:Enter a trait (e.g., 'nice eyes').</li>
+                    <li>Follow-Up Enter the last thing they said (e.g., 'How are you doing').</li>
+                </ul>
+            </div>
+        </main>
+
+        <!-- Input Area -->
+        <div class="p-4 bg-[var(--deep-black)] border-t border-[var(--dark-gold)]">
+            <input 
+                type="text" 
+                id="user-input" 
+                placeholder="Enter your trait or the last message you received..."
+                class="w-full p-3 mb-4 border border-[var(--dark-gold)] bg-[var(--light-black)] text-white rounded-xl focus:ring-[var(--classic-gold)] focus:border-[var(--classic-gold)] shadow-inner"
+                autofocus
+            >
+            <div class="flex gap-4">
+                <button 
+                    onclick="handleGeneration('compliment')" 
+                    id="compliment-button"
+                    class="flex-1 bg-[var(--classic-gold)] text-gray-900 font-bold py-3 px-3 rounded-xl hover:bg-[#FFE066] transition duration-150 shadow-lg flex items-center justify-center disabled:opacity-50"
+                >
+                    💎 Get Compliment
+                </button>
+                <button 
+                    onclick="handleGeneration('followup')" 
+                    id="followup-button"
+                    class="flex-1 bg-[var(--dark-gold)] text-white font-bold py-3 px-3 rounded-xl hover:bg-[#D4AF37] transition duration-150 shadow-lg flex items-center justify-center disabled:opacity-50"
+                >
+                    ✨ Get Follow-Up
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "AIzaSyB2q_1IUf4NLRaImh5rhQbuzFDMus4HBHA"; // Leave as-is for Canvas environment
+        const modelName = "gemini-2.5-flash-preview-05-20";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+        // System prompt for the Compliment Architect mode (short, punchy lines based on a trait)
+        const complimentSystemPrompt = "You are 'The Compliment Architect,' a master of smooth, clever, and genuinely flattering pickup lines and compliments. The user will provide a specific feature, trait, hobby, or keyword (e.g., 'blue eyes', 'reading', 'band t-shirt'). Your sole task is to generate ONE single, original, and highly effective pickup line or compliment based ONLY on that input. Keep the response concise, punchy, and less than 30 words. Do not provide extra commentary or advice, just the line itself.";
+
+        // System prompt for the Follow-Up Generator mode (witty responses based on the last message)
+        const followupSystemPrompt = "You are 'The Follow-Up Generator,' a witty and charismatic conversation expert. The user will provide the last message they received from someone (e.g., 'I love dogs' or 'What do you do for fun?'). Your task is to generate ONE single, natural, and engaging response that continues the conversation smoothly, usually by asking an open-ended question or making a confident, light-hearted statement. Keep the response concise and engaging (under 30 words). Do not provide extra commentary or advice, just the line itself.";
+
+
+        // DOM Elements
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const complimentButton = document.getElementById('compliment-button');
+        const followupButton = document.getElementById('followup-button');
+        let isGenerating = false;
+
+        /**
+         * Scrolls the chat container to the bottom.
+         */
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        /**
+         * Adds a message bubble to the chat container.
+         * @param {string} text - The message content.
+         * @param {string} sender - 'user' or 'ai'.
+         * @param {string} [id] - Optional ID for the message element (e.g., for a loading state).
+         */
+        function addMessage(text, sender, id = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            if (id) messageDiv.id = id;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `${sender}-message shadow-xl`;
+            bubble.innerHTML = text;
+            
+            messageDiv.appendChild(bubble);
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+            return messageDiv;
+        }
+
+        /**
+         * Shows the AI typing indicator.
+         * @returns {HTMLElement} The loading indicator element.
+         */
+        function showLoading() {
+            const loadingHtml = `
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            `;
+            return addMessage(loadingHtml, 'ai', 'loading-indicator');
+        }
+
+        /**
+         * Main function to handle generation based on the selected mode.
+         * @param {string} mode - 'compliment' or 'followup'.
+         */
+        async function handleGeneration(mode) {
+            if (isGenerating) return;
+
+            const query = userInput.value.trim();
+            if (query === "") return;
+
+            // Determine which system prompt to use
+            const currentSystemPrompt = mode === 'compliment' ? complimentSystemPrompt : followupSystemPrompt;
+            const buttonText = mode === 'compliment' ? '💎 Compliment' : '✨ Follow-Up';
+
+            // 1. Display user message and clear input
+            addMessage(`[${buttonText} Request]: ${query}`, 'user');
+            userInput.value = '';
+            
+            // 2. Show loading indicator and disable buttons
+            const loadingIndicator = showLoading();
+            isGenerating = true;
+            complimentButton.disabled = true;
+            followupButton.disabled = true;
+
+            try {
+                // 3. Call the Gemini API
+                const responseText = await generateRizz(query, currentSystemPrompt);
+
+                // 4. Replace loading indicator with AI response
+                loadingIndicator.querySelector('.ai-message').innerHTML = responseText;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                loadingIndicator.querySelector('.ai-message').innerHTML = 
+                    `<span class="text-red-600 font-bold">Error:</span> Could not connect to the Architect. Try again.`;
+            } finally {
+                // 5. Cleanup
+                isGenerating = false;
+                complimentButton.disabled = false;
+                followupButton.disabled = false;
+                scrollToBottom();
+            }
+        }
+
+        /**
+         * Generates the Rizz response from the Gemini API with exponential backoff.
+         * @param {string} userQuery - The user's message/situation.
+         * @param {string} systemPrompt - The specific system instruction for the mode.
+         * @returns {Promise<string>} The generated response text.
+         */
+        async function generateRizz(userQuery, systemPrompt) {
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (i < MAX_RETRIES - 1) {
+                            // Implement exponential backoff delay
+                            const delay = Math.pow(2, i) * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue; // Retry
+                        } else {
+                            throw new Error(`API call failed with status: ${response.status}`);
+                        }
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (text) {
+                        return text;
+                    } else {
+                        throw new Error("Invalid response structure from API.");
+                    }
+
+                } catch (error) {
+                    if (i === MAX_RETRIES - 1) {
+                        throw error; // Throw final error
+                    }
+                }
+            }
+        }
+        
+    </script>
+
+</body>
+</html>
