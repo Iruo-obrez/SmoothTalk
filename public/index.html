@@ -191,16 +191,6 @@
     </div>
 
     <script>
-        const apiKey = "AIzaSyB2q_1IUf4NLRaImh5rhQbuzFDMus4HBHA"; // Leave as-is for Canvas environment
-        const modelName = "gemini-2.5-flash-preview-05-20";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-        // System prompt for the Compliment Architect mode
-        const complimentSystemPrompt = "You are 'The Compliment Architect,' a master of smooth, clever, and genuinely flattering pickup lines and compliments. The user will provide a specific feature, trait, hobby, or keyword (e.g., 'blue eyes', 'reading', 'band t-shirt'). Your sole task is to generate ONE single, original, and highly effective pickup line or compliment based ONLY on that input. Keep the response concise, punchy, and less than 30 words. Do not provide extra commentary or advice, just the line itself.";
-
-        // System prompt for the Follow-Up Generator mode
-        const followupSystemPrompt = "You are 'The Follow-Up Generator,' a witty and charismatic conversation expert. The user will provide the last message they received from someone (e.g., 'I love dogs' or 'What do you do for fun?'). Your task is to generate ONE single, natural, and engaging response that continues the conversation smoothly, usually by asking an open-ended question or making a confident, light-hearted statement. Keep the response concise and engaging (under 30 words). Do not provide extra commentary or advice, just the line itself.";
-
         // DOM Elements
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
@@ -266,7 +256,6 @@
             const query = userInput.value.trim();
             if (query === "") return;
 
-            const currentSystemPrompt = mode === 'compliment' ? complimentSystemPrompt : followupSystemPrompt;
             const buttonText = mode === 'compliment' ? 'Compliment' : 'Follow-Up';
 
             // 1. Display user message and clear input
@@ -280,8 +269,8 @@
             followupButton.disabled = true;
 
             try {
-                // 3. Call the Gemini API
-                const responseText = await generateRizz(query, currentSystemPrompt);
+                // 3. Call secure backend route
+                const responseText = await generateRizz(query, mode);
 
                 // 4. Replace loading indicator inner content with AI response
                 const bubbleEl = loadingIndicator.querySelector('.ai-message');
@@ -289,7 +278,7 @@
                     bubbleEl.innerHTML = responseText;
                 }
             } catch (error) {
-                console.error("Gemini API Error:", error);
+                console.error("API Error:", error);
                 const bubbleEl = loadingIndicator.querySelector('.ai-message');
                 if (bubbleEl) {
                     bubbleEl.innerHTML = `<span class="text-red-400 font-semibold">Error:</span> Could not connect. Try again.`;
@@ -304,47 +293,30 @@
         }
 
         /**
-         * Generates the response from the Gemini API with exponential backoff.
+         * Calls your secure Vercel backend route (/api/generate)
          */
-        async function generateRizz(userQuery, systemPrompt) {
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
+        async function generateRizz(userQuery, mode) {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    query: userQuery, 
+                    mode: mode 
+                })
+            });
 
-            const MAX_RETRIES = 3;
-            for (let i = 0; i < MAX_RETRIES; i++) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
+            const data = await response.json();
 
-                    if (!response.ok) {
-                        if (i < MAX_RETRIES - 1) {
-                            const delay = Math.pow(2, i) * 1000;
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            continue;
-                        } else {
-                            throw new Error(`API call failed with status: ${response.status}`);
-                        }
-                    }
+            if (!response.ok) {
+                throw new Error(data.error || `Server error: ${response.status}`);
+            }
 
-                    const result = await response.json();
-                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    
-                    if (text) {
-                        return text;
-                    } else {
-                        throw new Error("Invalid response structure from API.");
-                    }
-
-                } catch (error) {
-                    if (i === MAX_RETRIES - 1) {
-                        throw error;
-                    }
-                }
+            if (data.result) {
+                return data.result;
+            } else {
+                throw new Error("No response received from API.");
             }
         }
         
