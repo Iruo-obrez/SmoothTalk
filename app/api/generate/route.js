@@ -4,14 +4,20 @@ export async function POST(req) {
   try {
     const { query, mode } = await req.json();
 
-    const complimentPrompt = "You are 'The Compliment Architect,' a master of smooth pickup lines. Generate ONE single, clever compliment under 30 words based on the input.";
-    const followupPrompt = "You are 'The Follow-Up Generator,' a witty conversation expert. Generate ONE single engaging response under 30 words based on the input.";
+    // UPDATED: Calm, cool, effortless, un-cringe prompts
+    const complimentPrompt = "You are a naturally charming, calm, and effortlessly cool person texting someone you vibe with. The user will give you a trait or topic (e.g., 'blue eyes' or 'reading'). Write ONE short, casual, and subtly flirty text or compliment based on it. Sound like a real human texting naturally on an iPhone—no cheesy pick-up lines, no overly poetic AI fluff, no exclamation marks unless necessary, and zero cringe. Keep it under 20 words.";
+    
+    const followupPrompt = "You are a naturally charismatic, witty, and laid-back texter. The user will give you the last message they received. Write ONE short, clever, and smooth reply that keeps the conversation flowing without trying too hard. Sound completely human, relaxed, and cool. No robotic or formal AI tone. Keep it under 20 words.";
 
     const systemPrompt = mode === 'compliment' ? complimentPrompt : followupPrompt;
     const apiKey = process.env.GEMINI_API_KEY;
 
+    if (!apiKey) {
+      return NextResponse.json({ result: "API key missing on server." }, { status: 500 });
+    }
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -23,10 +29,21 @@ export async function POST(req) {
     );
 
     const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
 
-    return NextResponse.json({ result: resultText });
+    if (data.error) {
+      console.error("Gemini API Error Detail:", data.error);
+      return NextResponse.json({ result: `Gemini Error: ${data.error.message}` });
+    }
+
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (resultText) {
+      return NextResponse.json({ result: resultText.trim() });
+    } else {
+      return NextResponse.json({ result: "Could not generate a response. Please try again." });
+    }
   } catch (error) {
-    return NextResponse.json({ error: "Failed to generate response." }, { status: 500 });
+    console.error("Route Handler Error:", error);
+    return NextResponse.json({ result: "Server error handling request." }, { status: 500 });
   }
 }
