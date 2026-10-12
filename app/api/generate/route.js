@@ -19,9 +19,9 @@ export async function POST(req) {
       return NextResponse.json({ result: "Error: GEMINI_API_KEY is not configured on Vercel." });
     }
 
-    // Using gemini-1.5-flash for stable and reliable text generation
+    // Updated to use the active gemini-3.8-flash model endpoint
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
