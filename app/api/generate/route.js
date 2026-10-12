@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
-// Helper: Call primary Google Gemini API
+// Helper: Primary call to Google Gemini
 async function callGemini(payload, apiKey) {
+  // Using gemini-2.5-flash which has a much larger daily quota window
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
@@ -11,17 +12,15 @@ async function callGemini(payload, apiKey) {
     }
   );
 
-  if (!response.ok) {
-    throw new Error(`Gemini HTTP Error: ${response.status}`);
-  }
-
   const data = await response.json();
-  if (data.error) throw new Error(data.error.message);
+  if (!response.ok || data.error) {
+    throw new Error(data?.error?.message || `Gemini HTTP Error: ${response.status}`);
+  }
 
   return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
-// Helper: Fallback call to Groq (Llama 3.1 8B)
+// Helper: Backup call to Groq (Llama 3.1)
 async function callGroqFallback(prompt, systemPrompt, apiKey) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -40,11 +39,11 @@ async function callGroqFallback(prompt, systemPrompt, apiKey) {
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Groq HTTP Error: ${response.status}`);
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    throw new Error(data?.error?.message || `Groq HTTP Error: ${response.status}`);
   }
 
-  const data = await response.json();
   return data.choices?.[0]?.message?.content;
 }
 
@@ -60,7 +59,7 @@ export async function POST(req) {
     const geminiKey = process.env.GEMINI_API_KEY;
     const groqKey = process.env.GROQ_API_KEY;
 
-    // 1. Primary Try: Google Gemini
+    // 1. Try Primary Provider (Google Gemini)
     if (geminiKey) {
       try {
         const payload = {
@@ -73,11 +72,11 @@ export async function POST(req) {
           return NextResponse.json({ result: geminiResult.trim() });
         }
       } catch (geminiError) {
-        console.warn("Gemini busy/down. Switching to Groq fallback...", geminiError.message);
+        console.warn("Gemini quota/rate limit hit. Switching seamlessly to Groq...", geminiError.message);
       }
     }
 
-    // 2. Secondary Fallback: Groq API
+    // 2. Fallback to Secondary Provider (Groq)
     if (groqKey) {
       try {
         const groqResult = await callGroqFallback(query, systemPrompt, groqKey);
@@ -85,16 +84,16 @@ export async function POST(req) {
           return NextResponse.json({ result: groqResult.trim() });
         }
       } catch (groqError) {
-        console.error("Groq fallback also failed:", groqError.message);
+        console.error("Groq fallback error:", groqError.message);
       }
     }
 
     return NextResponse.json(
-      { result: "Service is temporarily busy. Please try again in a few seconds." },
+      { result: "Service is temporarily busy. Please try again in a few moments." },
       { status: 503 }
     );
   } catch (error) {
     console.error("Route Handler Error:", error);
-    return NextResponse.json({ result: "Server error handling request." }, { status: 500 });
+    return NextResponse.json({ result: "Server error processing request." }, { status: 500 });
   }
 }
