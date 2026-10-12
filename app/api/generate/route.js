@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Primary Call: Groq API (Llama 3.1 8B - 14,400 free requests/day)
+// Primary Call: Groq API (Llama 3.1 8B - High throughput, zero 503 quota locks)
 async function callGroq(prompt, systemPrompt, apiKey) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -27,7 +27,7 @@ async function callGroq(prompt, systemPrompt, apiKey) {
   return data.choices?.[0]?.message?.content;
 }
 
-// Backup Call: Google Gemini API
+// Backup Call: Google Gemini API (gemini-2.5-flash)
 async function callGemini(payload, apiKey) {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -58,7 +58,7 @@ export async function POST(req) {
     const groqKey = process.env.GROQ_API_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
 
-    // 1. Try Groq Primary
+    // 1. Try Groq First (Instant & Reliable)
     if (groqKey) {
       try {
         const groqResult = await callGroq(query, systemPrompt, groqKey);
@@ -70,7 +70,7 @@ export async function POST(req) {
       }
     }
 
-    // 2. Try Gemini Backup
+    // 2. Fallback to Gemini Backup if Groq fails
     if (geminiKey) {
       try {
         const payload = {
@@ -86,7 +86,10 @@ export async function POST(req) {
       }
     }
 
-    return NextResponse.json({ result: "API key error. Please check your GROQ_API_KEY setting on Vercel." }, { status: 500 });
+    return NextResponse.json(
+      { result: "Service is temporarily busy. Please check your GROQ_API_KEY setting." },
+      { status: 503 }
+    );
   } catch (error) {
     console.error("Route Handler Error:", error);
     return NextResponse.json({ result: "Server error processing request." }, { status: 500 });
