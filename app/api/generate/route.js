@@ -19,7 +19,7 @@ export async function POST(req) {
       return NextResponse.json({ result: "Error: OPENROUTER_API_KEY is missing from Vercel environment variables." });
     }
 
-    // Direct OpenRouter request targeting the free routing pool
+    // Single provider call to OpenRouter's free tier router
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
