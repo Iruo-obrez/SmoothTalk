@@ -4,7 +4,6 @@ export async function POST(req) {
   try {
     const { query, mode } = await req.json();
 
-    // UPDATED: Calm, cool, effortless, un-cringe prompts
     const complimentPrompt = "You are a naturally charming, calm, and effortlessly cool person texting someone you vibe with. The user will give you a trait or topic (e.g., 'blue eyes' or 'reading'). Write ONE short, casual, and subtly flirty text or compliment based on it. Sound like a real human texting naturally on an iPhone—no cheesy pick-up lines, no overly poetic AI fluff, no exclamation marks unless necessary, and zero cringe. Keep it under 20 words.";
     
     const followupPrompt = "You are a naturally charismatic, witty, and laid-back texter. The user will give you the last message they received. Write ONE short, clever, and smooth reply that keeps the conversation flowing without trying too hard. Sound completely human, relaxed, and cool. No robotic or formal AI tone. Keep it under 20 words.";
@@ -16,8 +15,9 @@ export async function POST(req) {
       return NextResponse.json({ result: "API key missing on server." }, { status: 500 });
     }
 
+    // Updated to use the correct available model name
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
