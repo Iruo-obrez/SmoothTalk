@@ -15,27 +15,44 @@ export async function POST(req) {
       return NextResponse.json({ result: "API key missing on server." }, { status: 500 });
     }
 
-    // Updated to use the correct available model name
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: query }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-        }),
+    const payload = {
+      contents: [{ parts: [{ text: query }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+    };
+
+    // Auto-retry up to 3 times if Google experiences temporary high demand
+    const MAX_RETRIES = 3;
+    let data;
+
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      data = await response.json();
+
+      // If successful, break the retry loop
+      if (response.ok && !data.error) {
+        break;
       }
-    );
 
-    const data = await response.json();
-
-    if (data.error) {
-      console.error("Gemini API Error Detail:", data.error);
-      return NextResponse.json({ result: `Gemini Error: ${data.error.message}` });
+      // If high demand/rate limit error, wait briefly before retrying
+      if (i < MAX_RETRIES - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * (i + 1)));
+      }
     }
 
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (data?.error) {
+      console.error("Gemini API Error Detail:", data.error);
+      return NextResponse.json({ result: "The server is a bit busy right now. Give it another tap in a sec!" });
+    }
+
+    const resultText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (resultText) {
       return NextResponse.json({ result: resultText.trim() });
