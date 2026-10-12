@@ -19,17 +19,17 @@ export async function POST(req) {
       return NextResponse.json({ result: "Error: OPENROUTER_API_KEY is missing from Vercel environment variables." });
     }
 
-    // Call OpenRouter's API endpoint targeting free model routing
+    // Direct OpenRouter request targeting the free routing pool
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openrouterKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://smoothtalk-phi.vercel.app', // Optional site URL
+        'HTTP-Referer': 'https://smoothtalk-phi.vercel.app',
         'X-Title': 'SmoothTalk',
       },
       body: JSON.stringify({
-        model: 'openrouter/free', // Automatically routes to available free models (Llama, Qwen, etc.)
+        model: 'openrouter/free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: query },
@@ -46,7 +46,7 @@ export async function POST(req) {
       return NextResponse.json({ result: `OpenRouter Error: ${errorMsg}` });
     }
 
-    const text = data?.choices?.[0]?.message?.content;
+    const text = data.choices?.[0]?.message?.content;
     if (!text) {
       return NextResponse.json({ result: "Error: OpenRouter returned an empty response." });
     }
