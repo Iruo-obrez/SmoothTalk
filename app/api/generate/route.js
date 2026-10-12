@@ -1,27 +1,7 @@
 import { NextResponse } from 'next/server';
 
-// Helper: Primary call to Google Gemini
-async function callGemini(payload, apiKey) {
-  // Using gemini-2.5-flash which has a much larger daily quota window
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }
-  );
-
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    throw new Error(data?.error?.message || `Gemini HTTP Error: ${response.status}`);
-  }
-
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text;
-}
-
-// Helper: Backup call to Groq (Llama 3.1)
-async function callGroqFallback(prompt, systemPrompt, apiKey) {
+// Primary Call: Groq API (Llama 3.1 8B - 14,400 free requests/day)
+async function callGroq(prompt, systemPrompt, apiKey) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -41,10 +21,29 @@ async function callGroqFallback(prompt, systemPrompt, apiKey) {
 
   const data = await response.json();
   if (!response.ok || data.error) {
-    throw new Error(data?.error?.message || `Groq HTTP Error: ${response.status}`);
+    throw new Error(data?.error?.message || `Groq Error: ${response.status}`);
   }
 
   return data.choices?.[0]?.message?.content;
+}
+
+// Backup Call: Google Gemini API
+async function callGemini(payload, apiKey) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    throw new Error(data?.error?.message || `Gemini Error: ${response.status}`);
+  }
+
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
 export async function POST(req) {
@@ -56,42 +55,38 @@ export async function POST(req) {
 
     const systemPrompt = mode === 'compliment' ? complimentPrompt : followupPrompt;
     
-    const geminiKey = process.env.GEMINI_API_KEY;
     const groqKey = process.env.GROQ_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
 
-    // 1. Try Primary Provider (Google Gemini)
+    // 1. Try Groq Primary
+    if (groqKey) {
+      try {
+        const groqResult = await callGroq(query, systemPrompt, groqKey);
+        if (groqResult) {
+          return NextResponse.json({ result: groqResult.trim() });
+        }
+      } catch (groqError) {
+        console.warn("Groq failed, switching to Gemini backup:", groqError.message);
+      }
+    }
+
+    // 2. Try Gemini Backup
     if (geminiKey) {
       try {
         const payload = {
           contents: [{ parts: [{ text: query }] }],
           systemInstruction: { parts: [{ text: systemPrompt }] },
         };
-        
         const geminiResult = await callGemini(payload, geminiKey);
         if (geminiResult) {
           return NextResponse.json({ result: geminiResult.trim() });
         }
       } catch (geminiError) {
-        console.warn("Gemini quota/rate limit hit. Switching seamlessly to Groq...", geminiError.message);
+        console.error("Gemini backup error:", geminiError.message);
       }
     }
 
-    // 2. Fallback to Secondary Provider (Groq)
-    if (groqKey) {
-      try {
-        const groqResult = await callGroqFallback(query, systemPrompt, groqKey);
-        if (groqResult) {
-          return NextResponse.json({ result: groqResult.trim() });
-        }
-      } catch (groqError) {
-        console.error("Groq fallback error:", groqError.message);
-      }
-    }
-
-    return NextResponse.json(
-      { result: "Service is temporarily busy. Please try again in a few moments." },
-      { status: 503 }
-    );
+    return NextResponse.json({ result: "API key error. Please check your GROQ_API_KEY setting on Vercel." }, { status: 500 });
   } catch (error) {
     console.error("Route Handler Error:", error);
     return NextResponse.json({ result: "Server error processing request." }, { status: 500 });
