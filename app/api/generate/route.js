@@ -20,9 +20,9 @@ export async function POST(req) {
       systemInstruction: { parts: [{ text: systemPrompt }] },
     };
 
-    // Using the stable and universally available gemini-1.5-flash endpoint
+    // Using the current standard Gemini 3.8 Flash model endpoint
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
