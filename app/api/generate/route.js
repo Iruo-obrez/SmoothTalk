@@ -13,35 +13,42 @@ export async function POST(req) {
     const followupPrompt = "You are a naturally charismatic, witty, and laid-back texter. Write ONE short, clever, and smooth reply that keeps the conversation flowing. Keep it under 20 words.";
 
     const systemPrompt = mode === 'compliment' ? complimentPrompt : followupPrompt;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const openrouterKey = process.env.OPENROUTER_API_KEY;
 
-    if (!geminiKey) {
-      return NextResponse.json({ result: "Error: GEMINI_API_KEY is not configured on Vercel." });
+    if (!openrouterKey) {
+      return NextResponse.json({ result: "Error: OPENROUTER_API_KEY is missing from Vercel environment variables." });
     }
 
-    // Updated to use the correct active gemini-3.8-flash model
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: query }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-        }),
-      }
-    );
+    // Call OpenRouter's API endpoint targeting free model routing
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openrouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://smoothtalk-phi.vercel.app', // Optional site URL
+        'X-Title': 'SmoothTalk',
+      },
+      body: JSON.stringify({
+        model: 'openrouter/free', // Automatically routes to available free models (Llama, Qwen, etc.)
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: query },
+        ],
+        max_tokens: 100,
+        temperature: 0.7,
+      }),
+    });
 
     const data = await response.json();
 
     if (!response.ok || data.error) {
       const errorMsg = data?.error?.message || `HTTP error ${response.status}`;
-      return NextResponse.json({ result: `Gemini Error: ${errorMsg}` });
+      return NextResponse.json({ result: `OpenRouter Error: ${errorMsg}` });
     }
 
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data?.choices?.[0]?.message?.content;
     if (!text) {
-      return NextResponse.json({ result: "Error: Received an empty response from Gemini." });
+      return NextResponse.json({ result: "Error: OpenRouter returned an empty response." });
     }
 
     return NextResponse.json({ result: text.trim() });
